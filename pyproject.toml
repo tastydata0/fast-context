@@ -1,0 +1,18 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+
+[project]
+name = "fast-context"
+version = "0.1.0"
+description = "A ContextVars-based library for passing metadata between microservices using FastAPI and httpx"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = ["fastapi>=0.110", "httpx>=0.25"]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.3.4"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
