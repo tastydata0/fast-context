@@ -1,7 +1,7 @@
 from contextlib import ExitStack, contextmanager
 from typing import Any
 
-from .types import Contextualizable
+from .utils import Contextualizable
 
 
 class ContextManagerAggregator:

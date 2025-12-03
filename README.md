@@ -182,6 +182,29 @@ async def proxy_endpoint():
     return {"status": "ok"}
 ```
 
+### Инъекция контекста в функции в качестве kwargs
+
+```python
+manager = ContextVarsManager()
+
+@manager.inject_kwargs("bar")
+def foo(**kwargs):
+    print(kwargs)
+
+
+@manager.inject_kwargs("bar", override=True)
+def foo2(**kwargs):
+    print(kwargs)
+
+
+with manager.contextualize(bar=123, baz="test"):
+    foo()  # {'bar': 123}
+    foo2()  # {'bar': 123}
+
+    foo(bar=-1)  # {'bar': -1}
+    foo2(bar=-1)  # {'bar': 123}
+```
+
 ## ⚙️ Особенности работы с ключами
 
 Библиотека автоматически преобразует формат ключей для соответствия стандартам Python и HTTP:

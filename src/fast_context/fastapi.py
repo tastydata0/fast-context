@@ -2,7 +2,7 @@ from fastapi import Request
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.types import ASGIApp
 
-from .types import Contextualizable
+from .utils import Contextualizable
 
 
 class HeaderToContextMiddleware(BaseHTTPMiddleware):
