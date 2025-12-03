@@ -2,7 +2,7 @@ import contextvars
 import functools
 import inspect
 from contextlib import contextmanager
-from typing import Any, Dict, Generator
+from typing import Any, Dict, Generator, Optional
 
 import httpx
 
@@ -58,7 +58,13 @@ class ContextVarsManager:
         # Добавляем наш хук в список хуков клиента
         client.event_hooks["request"].append(add_context_headers_hook)
 
-    def inject_kwargs(self, *keys_to_inject, override: bool = False):
+    def inject_kwargs(
+        self,
+        *keys_to_inject,
+        aliases: Optional[dict[str, str]] = None,
+        override: bool = False,
+        raise_on_missing: bool = True,
+    ):
         """
         Декоратор-фабрика.
         Внедряет в вызов функции именованные аргументы, переданные при вызове. Значение - содержимое контекста по этому ключу
@@ -67,8 +73,13 @@ class ContextVarsManager:
         :param override: Именованный аргумент. Если True, значения из декоратора
                         имеют приоритет над переданными при вызове именованными
                         аргументами. По умолчанию False.
-        :raises NoContextException: Если ключа нет в контексте.
+        :param raise_on_missing: Если True, вызывает NoContextException если ключа
+                                 нет в контексте. По умолчанию True.
+        :param aliases: Под какими именами прокинуть аргументы вместо указанных ключей. from -> to
+        :raises NoContextException: Если ключа нет в контексте, если raise_on_missing=True.
         """
+
+        aliases = aliases or {}
 
         def actual_decorator(func):
             sig = inspect.signature(func)
@@ -80,13 +91,21 @@ class ContextVarsManager:
                 async def wrapper(*args, **kwargs):
                     context = self.get_context()
 
-                    for key in keys_to_inject:
-                        if key not in context:
-                            raise NoContextException(
-                                f"Ключ {key} отсутствует в контексте ({context})"
-                            )
+                    if raise_on_missing:
+                        for key in keys_to_inject:
+                            if key not in context:
+                                raise NoContextException(
+                                    f"Ключ {key} отсутствует в контексте ({context})"
+                                )
 
-                    defaults = {key: context[key] for key in keys_to_inject}
+                    defaults = {
+                        key: context[key] for key in keys_to_inject if key in context
+                    }
+                    for alias_from, alias_to in aliases.items():
+                        if alias_from in context:
+                            if alias_from in defaults:
+                                defaults[alias_to] = defaults[alias_from]
+                                del defaults[alias_from]
 
                     if override:
                         final_kwargs = kwargs.copy()
@@ -107,13 +126,21 @@ class ContextVarsManager:
                 def wrapper(*args, **kwargs):
                     context = self.get_context()
 
-                    for key in keys_to_inject:
-                        if key not in context:
-                            raise NoContextException(
-                                f"Ключ {key} отсутствует в контексте ({context})"
-                            )
+                    if raise_on_missing:
+                        for key in keys_to_inject:
+                            if key not in context:
+                                raise NoContextException(
+                                    f"Ключ {key} отсутствует в контексте ({context})"
+                                )
 
-                    defaults = {key: context[key] for key in keys_to_inject}
+                    defaults = {
+                        key: context[key] for key in keys_to_inject if key in context
+                    }
+                    for alias_from, alias_to in aliases.items():
+                        if alias_from in context:
+                            if alias_from in defaults:
+                                defaults[alias_to] = defaults[alias_from]
+                                del defaults[alias_from]
 
                     # 1. Формируем "кандидатский" набор kwargs,
                     #    учитывая флаг `override`.
@@ -138,24 +165,3 @@ class ContextVarsManager:
             return wrapper
 
         return actual_decorator
-
-
-manager = ContextVarsManager()
-
-
-@manager.inject_kwargs("bar")
-def foo(**kwargs):
-    print(kwargs)
-
-
-@manager.inject_kwargs("bar", override=True)
-def foo2(**kwargs):
-    print(kwargs)
-
-
-with manager.contextualize(bar=123, baz="test"):
-    foo()  # {'bar': 123}
-    foo2()  # {'bar': 123}
-
-    foo(bar=-1)  # {'bar': -1}
-    foo2(bar=-1)  # {'bar': 123}
