@@ -72,38 +72,68 @@ class ContextVarsManager:
 
         def actual_decorator(func):
             sig = inspect.signature(func)
+            is_async = inspect.iscoroutinefunction(func)
 
-            @functools.wraps(func)
-            def wrapper(*args, **kwargs):
-                context = self.get_context()
+            if is_async:
+                # Версия для async def функций
+                @functools.wraps(func)
+                async def wrapper(*args, **kwargs):
+                    context = self.get_context()
 
-                for key in keys_to_inject:
-                    if key not in context:
-                        raise NoContextException(
-                            f"Ключ {key} отсутствует в контексте ({context})"
-                        )
+                    for key in keys_to_inject:
+                        if key not in context:
+                            raise NoContextException(
+                                f"Ключ {key} отсутствует в контексте ({context})"
+                            )
 
-                defaults = {key: context[key] for key in keys_to_inject}
+                    defaults = {key: context[key] for key in keys_to_inject}
 
-                # 1. Формируем "кандидатский" набор kwargs,
-                #    учитывая флаг `override`.
-                if override:
-                    # Начинаем с явных kwargs, но разрешаем `defaults` их перезаписать
-                    final_kwargs = kwargs.copy()
-                    final_kwargs.update(defaults)
-                else:
-                    # Начинаем с `defaults`, но разрешаем явным kwargs их перезаписать
-                    final_kwargs = defaults.copy()
-                    final_kwargs.update(kwargs)
+                    if override:
+                        final_kwargs = kwargs.copy()
+                        final_kwargs.update(defaults)
+                    else:
+                        final_kwargs = defaults.copy()
+                        final_kwargs.update(kwargs)
 
-                # 2. Проверяем реальность: позиционные аргументы имеют абсолютный приоритет.
-                #    Удаляем из наших кандидатов все, что уже было передано позиционно.
-                bound_positional_args = sig.bind_partial(*args).arguments
-                for name in bound_positional_args:
-                    final_kwargs.pop(name, None)
+                    bound_positional_args = sig.bind_partial(*args).arguments
+                    for name in bound_positional_args:
+                        final_kwargs.pop(name, None)
 
-                # 3. Вызываем функцию с правильным набором аргументов.
-                return func(*args, **final_kwargs)
+                    return await func(*args, **final_kwargs)
+
+            else:
+
+                @functools.wraps(func)
+                def wrapper(*args, **kwargs):
+                    context = self.get_context()
+
+                    for key in keys_to_inject:
+                        if key not in context:
+                            raise NoContextException(
+                                f"Ключ {key} отсутствует в контексте ({context})"
+                            )
+
+                    defaults = {key: context[key] for key in keys_to_inject}
+
+                    # 1. Формируем "кандидатский" набор kwargs,
+                    #    учитывая флаг `override`.
+                    if override:
+                        # Начинаем с явных kwargs, но разрешаем `defaults` их перезаписать
+                        final_kwargs = kwargs.copy()
+                        final_kwargs.update(defaults)
+                    else:
+                        # Начинаем с `defaults`, но разрешаем явным kwargs их перезаписать
+                        final_kwargs = defaults.copy()
+                        final_kwargs.update(kwargs)
+
+                    # 2. Проверяем реальность: позиционные аргументы имеют абсолютный приоритет.
+                    #    Удаляем из наших кандидатов все, что уже было передано позиционно.
+                    bound_positional_args = sig.bind_partial(*args).arguments
+                    for name in bound_positional_args:
+                        final_kwargs.pop(name, None)
+
+                    # 3. Вызываем функцию с правильным набором аргументов.
+                    return func(*args, **final_kwargs)
 
             return wrapper
 
